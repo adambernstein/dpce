@@ -15,3 +15,6 @@ This is a simple shell script to help with partial configuration exports when yo
 # Requirements
 - Drupal 8
 - Drush version > 8.1.12
+
+# Note to git bash users on Windows:
+You *must* install mysql and have the command globally available from your bash terminal, or else Drush will not work properly. Git Bash does not ship with mysql by default. 

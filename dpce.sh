@@ -1,28 +1,79 @@
 #!/bin/bash
-echo "Drupal config partial-export helper v1"
+#@TODO colors
+echo -e "Drupal config partial export helper v1\n"
+test_root_dir () {
+    drush_drupal_root=$(drush eval "print drush_get_context('DRUSH_DRUPAL_ROOT')")
+    drupal_root=$(readlink -f $drush_drupal_root)
+    unameOut="$(uname -s)"
 
-read -e -p "Drush alias? (optional - e.x., @alias): " d_alias
-read -e -p "Directory to export config? (This should be outside of your Drupal repository): " export_dir
-# @TODO test if export_dir blank
-realdir=$(readlink -f $export_dir)
+    case "${unameOut}" in
+        Linux*)     machine=Linux;;
+        Darwin*)    machine=Mac;;
+        CYGWIN*)    machine=Cygwin;;
+        MINGW*)     machine=MinGw;;
+        *)          machine="UNKNOWN:${unameOut}"
+    esac
 
-## drush $d_alias cex --destination="$realdir"
-read -e -p "Find config files containing [glob]?: " glob
-read -e -p "Exclude files containing [glob]?: " notglob
-
-# @TODO print files list, number found & confirm
-find_configs () {
-   find "$realdir" -name "$glob" ! -name "$notglob" 
+    if [ "$machine" == "Cygwin" ] || [ "$machine" == "MinGw" ]; then
+        pwdOut="$(pwd -W)"
+    else 
+        pwdOut="$(pwd)"
+    fi
+    
+    if [ "$pwdOut" != "$drupal_root" ]; then
+        echo -e "Please run dpce from your Drupal docroot."
+        exit 2
+    fi
+        
 }
 
-find_configs
-# @TODO confirm/retry
+collect_data_export () {
+    # read -e -p "Drush alias? (optional - e.x., @alias): " d_alias
+    read -e -p "Directory to export config (this should be outside of your Drupal repository): " export_dir
+    # @TODO test if export_dir blank
+    realdir=$(readlink -f $export_dir)
+    # drush $d_alias cex --destination="$realdir"
+    #drush config-export --destination="$realdir"
+}
 
-read -e -p "Import directory? (This should be inside your Drupal repository but outside your docroot): " import_dir
-# @TODO test if import_dir blank
+find_configs () {
+    read -e -p "Find config files containing [glob]?: " glob
+    read -e -p "Exclude files containing [glob]?: " notglob
+    findresult=$(find "$realdir" -name "$glob.yml" ! -name "$notglob")
+    echo -e "Found $($findresult | wc -l) files."
+    confirm
+}
 
-realimportdir=$(readlink -f $import_dir)
+confirm () {
+    read -e -p "Confirm list? [y/n]: " isconfirmed
+    if [ -z "$isconfirmed" ]; then
+        confirm
+    fi
 
-cd "$realdir" && find . -name "$glob" ! -name "$notglob" | xargs cp -t "$realimportdir"
+}
 
-# @TODO print drush command to run on server
+import () {
+    read -e -p "Import directory? (This should be inside your Drupal repository but outside your docroot): " import_dir
+    realimportdir=$(readlink -f $import_dir)
+
+    if [ -d "$import_dir" ]; then
+        
+        cd "$realdir" && find . -name "$glob" ! -name "$notglob" | xargs cp -t "$realimportdir"
+        echo -e "Success.\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\ndrush config-import --partial --source=\""$realimportdir"\""
+    else
+        read -e -p "Directory "$import_dir" does not exist. Create it? [y/n]: " create_confirm
+        if ["$create_confirm" == "y" ]; then
+            mkdir "$realimportdir"
+            import
+        else exit 2
+        fi
+    fi   
+}
+
+test_root_dir
+collect_data_export
+while [ "$isconfirmed" != "y" ]; 
+    do
+        find_configs
+    done
+import
