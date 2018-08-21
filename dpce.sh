@@ -53,7 +53,8 @@ collect_data_export () {
         done
     export_dir=$(eval readlink -f $export_dir_in)
     if [ -d "$export_dir" ]; then        
-        drush $d_alias cex --destination="$export_dir"
+        #drush $d_alias cex --destination="$export_dir"
+        echo "simulated export"
     else
         read -e -p "Directory $export_dir does not exist. Create? [y/n]:" create_export_dir
         if [ "$create_export_dir" != "y" ]; then
@@ -72,7 +73,9 @@ find_configs () {
     read -e -p "Find config files containing [glob]?: " glob
     read -e -p "Exclude files containing [glob]?: " notglob
     findresult=$(find "$export_dir" -name "$glob" ! -name "$notglob" -type f)
-    echo -e "Found $(eval $findresult | wc -l) files."
+    resultcount=$("$findresult" | grep -c /)
+    #echo -e "Found $($findresult | wc -l) files."
+    echo -e "$findresult\n Found $resultcount files." 
     confirm
 }
 
