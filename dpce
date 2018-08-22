@@ -26,21 +26,19 @@ test_root_dir () {
         # Remove? drupal_root=$(readlink -f "$drush_drupal_root")
     drupal_root=$(cd "$drush_drupal_root" && eval $pwdCommand)
     if [ "$pwdOut" != "$drupal_root" ] && [ -z "$d_alias" ]; then
-        echo -e "[\e[1;91mFail\e[0m] Please provide a Drush alias or run dpce from your Drupal docroot."
+        echo -e "[\e[1;31mFail\e[0m] Please provide a Drush alias or run dpce from your Drupal docroot."
         exit 2
     fi
 
     # Test provided drush alias 
     if [ ! -d "$drush_drupal_root" ]; then
-        echo -e "[\e[1;91mFail\e[0m] Can't find Drush alias $d_alias."
+        echo -e "[\e[1;31mFail\e[0m] Can't find Drush alias $d_alias."
         exit 2;
     elif [ -z "$d_alias" ]; then
-        echo -e "\e[1;42m[Success]\e[0m Site found - using local directory.\\n"
+        echo -e "[\e[1;32mSuccess\e[0m] Site found - using local directory.\\n"
     else 
-        echo -e "\e[1;42m[Success]\e[0m Site found.\\n"
+        echo -e "[\e[1;32mSuccess\e[0m] Site found.\\n"
     fi
-
-
 }
 
 collect_data_export () {
@@ -58,7 +56,7 @@ collect_data_export () {
     else
         read -e -p "Directory $export_dir does not exist. Create? [y/n]:" create_export_dir
         if [ "$create_export_dir" != "y" ]; then
-            echo -e "[\e[1;91mFail\e[0m] Export failed. Please run dpce again and choose an export directory outside of your Drupal repository."
+            echo -e "[\e[1;31mFail\e[0m] Export failed. Please run dpce again and choose an export directory outside of your Drupal repository."
             exit 2
         else             
             mkdir "$export_dir"
