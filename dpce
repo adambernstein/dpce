@@ -1,6 +1,6 @@
 #!/bin/bash
-#@TODO colors
-echo -e "\e[36mDrupal config partial export helper v1\e[0m\\n"
+
+echo -e "\\e[36mDrupal config partial export helper v1\\e[0m\\n"
 
 test_root_dir () {
     unameOut="$(uname -s)"
@@ -23,44 +23,45 @@ test_root_dir () {
     
     # Test if not in Drupal root nor an alias provided. (Drush bootstrap will fail.)
     drush_drupal_root=$(drush "$d_alias" eval "print drush_get_context('DRUSH_DRUPAL_ROOT')")
-        # Remove? drupal_root=$(readlink -f "$drush_drupal_root")
     drupal_root=$(cd "$drush_drupal_root" && eval $pwdCommand)
     if [ "$pwdOut" != "$drupal_root" ] && [ -z "$d_alias" ]; then
-        echo -e "[\e[1;31mFail\e[0m] Please provide a Drush alias or run dpce from your Drupal docroot."
+        echo -e "[\\e[1;31mFail\\e[0m] Please provide a Drush alias or run dpce from your Drupal docroot."
         exit 2
     fi
 
     # Test provided drush alias 
     if [ ! -d "$drush_drupal_root" ]; then
-        echo -e "[\e[1;31mFail\e[0m] Can't find Drush alias $d_alias."
+        echo -e "[\\e[1;31mFail\\e[0m] Can't find Drush alias $d_alias."
         exit 2;
     elif [ -z "$d_alias" ]; then
-        echo -e "[\e[1;32mSuccess\e[0m] Site found - using local directory.\\n"
+        echo -e "[\\e[1;32mSuccess\\e[0m] Site found - using local directory.\\n"
     else 
-        echo -e "[\e[1;32mSuccess\e[0m] Site found.\\n"
+        echo -e "[\\e[1;32mSuccess\\e[0m] Site found.\\n"
     fi
 }
 
 collect_data_export () {
     read -e -p "Drush alias? (optional - e.x., @alias): " d_alias
-    test_root_dir
-    read -e -p "Directory to export config (this should be outside of your Drupal repository): " export_dir_in    
+    test_root_dir  
     while [ -z "$export_dir_in" ];
         do
-            read -e -p "Directory to export config (this should be outside of your Drupal repository): " export_dir_in
+            read -e -p "Directory to export full configuration (this should be outside of your Drupal repository): " export_dir_in
         done
-    export_dir=$(eval readlink -f "$export_dir_in")
-    if [ -d "$export_dir" ]; then        
-        #drush $d_alias cex --destination="$export_dir"
-        echo "simulated export"
+    export_dir=$(eval readlink -f "$export_dir_in") || \
+        { echo "[\\e[1;31mFail\\e[0m] Invalid directory."; exit 1; }
+    if [ -d "$export_dir" ]; then 
+        echo "Exporting config to $export_dir..."       
+        drush $d_alias cex --destination="$export_dir"
+        
     else
         read -e -p "Directory $export_dir does not exist. Create? [y/n]:" create_export_dir
         if [ "$create_export_dir" != "y" ]; then
-            echo -e "[\e[1;31mFail\e[0m] Export failed. Please run dpce again and choose an export directory outside of your Drupal repository."
+            echo -e "[\\e[1;31mFail\\e[0m] Export failed. Please run dpce again and choose an export directory outside of your Drupal repository."
             exit 2
         else             
-            mkdir "$export_dir"
-            echo -e "\e[1;42m[Success]\e[0m Export directory created at $export_dir\\n"
+            mkdir "$export_dir" || \
+                { echo "[\\e[1;31mFail\\e[0m] Could not create directory."; exit 1; }
+            echo -e "[\\e[1;32mSuccess\\e[0m] Export directory created at $export_dir\\nExporting config..."
             drush "$d_alias" cex --destination="$export_dir"
         fi
     fi
@@ -69,12 +70,16 @@ collect_data_export () {
 
 find_configs () {
     read -e -p "Find config files containing [glob]?: " glob
-    read -e -p "Exclude files containing [glob]?: " notglob
+    read -e -p "Exclude files containing [glob]? (optional): " notglob
+    # @TODO: use regex instead of glob
     findresult=$(find "$export_dir" -name "$glob" ! -name "$notglob" -type f)
-    resultcount=$("$findresult" | grep -c /)
-    #echo -e "Found $($findresult | wc -l) files."
+    resultcount=$(find "$export_dir" -name "$glob" ! -name "$notglob" -type f | wc -l)
     echo -e "$findresult\\n Found $resultcount files." 
-    confirm
+    if [ -z $resultcount ] || [ $resultcount == 0 ]; then
+        echo -e "Try surrounding search terms with asterisks, e.x.: *config-file-name-contains*"
+        find_configs
+    else confirm
+    fi
 }
 
 confirm () {
@@ -87,16 +92,21 @@ confirm () {
 
 import () {
     read -e -p "Import directory? (This should be inside your Drupal repository but outside your docroot): " import_dir
-    realimportdir=$(readlink -f "$import_dir")
+    realimportdir=$(eval readlink -f "$import_dir") || \
+        { echo "[\\e[1;31mFail\\e[0m] Invalid directory."; exit 1; }
 
-    if [ -d "$import_dir" ]; then        
-        cd "$export_dir" && find . -name "$glob" ! -name "$notglob" -0 | xargs cp -t "$realimportdir"
-        echo -e "Success.\\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\\ndrush config-import --partial --source=\"$realimportdir\""
+    if [ -d "$realimportdir" ]; then
+    # @TODO Use Regex instead of glob        
+        cd "$export_dir" &&  find . -name "$glob" ! -name "$notglob" -print0 | xargs cp -t "$realimportdir" --null
+        echo -e "[\\e[1;32mSuccess\\e[0m] \\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\\ndrush config-import --partial --source=\"$realimportdir\""
     else
         read -e -p "Directory \"$import_dir\" does not exist. Create it? [y/n]: " create_confirm
         if [ "$create_confirm" == "y" ]; then
-            mkdir "$realimportdir"
-            import
+        # @TODO Use Regex instead of glob
+            mkdir "$realimportdir" || \
+            { echo "[\\e[1;31mFail\\e[0m] Could not create directory."; exit 1; }
+            cd "$export_dir" && find . -name "$glob" ! -name "$notglob" -print0 | xargs cp -t "$realimportdir" --null
+            echo -e "[\\e[1;32mSuccess\\e[0m] \\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\\ndrush config-import --partial --source=\"$realimportdir\""            
         else exit 2
         fi
     fi   
