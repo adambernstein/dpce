@@ -22,7 +22,7 @@ test_root_dir () {
     fi
     
     # Test if not in Drupal root nor an alias provided. (Drush bootstrap will fail.)
-    drush_drupal_root=$(drush "$d_alias" eval "print drush_get_context('DRUSH_DRUPAL_ROOT')")
+    drush_drupal_root=$(drush $d_alias eval "print drush_get_context('DRUSH_DRUPAL_ROOT')")
     drupal_root=$(cd "$drush_drupal_root" && eval $pwdCommand)
     if [ "$pwdOut" != "$drupal_root" ] && [ -z "$d_alias" ]; then
         echo -e "[\\e[1;31mFail\\e[0m] Please provide a Drush alias or run dpce from your Drupal docroot."
@@ -51,7 +51,7 @@ collect_data_export () {
         { echo "[\\e[1;31mFail\\e[0m] Invalid directory."; exit 1; }
     if [ -d "$export_dir" ]; then 
         echo "Exporting config to $export_dir..."       
-        drush $d_alias cex --destination="$export_dir"
+        drush "$d_alias" cex --destination="$export_dir"
         
     else
         read -e -p "Directory $export_dir does not exist. Create? [y/n]:" create_export_dir
@@ -69,14 +69,14 @@ collect_data_export () {
 }
 
 find_configs () {
-    read -e -p "Find config files containing [glob]?: " glob
-    read -e -p "Exclude files containing [glob]? (optional): " notglob
+    read -e -p "Find config files [regex]?: " glob
+    # ref: https://www.gnu.org/software/findutils/manual/html_node/find_html/findutils_002ddefault-regular-expression-syntax.html#findutils_002ddefault-regular-expression-syntax
     # @TODO: use regex instead of glob
-    findresult=$(find "$export_dir" -name "$glob" ! -name "$notglob" -type f)
-    resultcount=$(find "$export_dir" -name "$glob" ! -name "$notglob" -type f | wc -l)
+    findresult=$(find "$export_dir" -regex "$glob" -type f)
+    resultcount=$(find "$export_dir" -regex "$glob" -type f | wc -l)
     echo -e "$findresult\\n Found $resultcount files." 
     if [ -z $resultcount ] || [ $resultcount == 0 ]; then
-        echo -e "Try surrounding search terms with asterisks, e.x.: *config-file-name-contains*"
+        echo -e "Try surrounding search terms with '.*', e.x.: .*\(contains\)*\(these\)*\(words\).*\\nRun dpce --help for more advanced help on regex matching."
         find_configs
     else confirm
     fi
@@ -97,7 +97,7 @@ import () {
 
     if [ -d "$realimportdir" ]; then
     # @TODO Use Regex instead of glob        
-        cd "$export_dir" &&  find . -name "$glob" ! -name "$notglob" -print0 | xargs cp -t "$realimportdir" --null
+        cd "$export_dir" &&  find . -regex "$glob" -print0 | xargs cp -t "$realimportdir" --null
         echo -e "[\\e[1;32mSuccess\\e[0m] \\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\\ndrush config-import --partial --source=\"$realimportdir\""
     else
         read -e -p "Directory \"$import_dir\" does not exist. Create it? [y/n]: " create_confirm
@@ -105,7 +105,7 @@ import () {
         # @TODO Use Regex instead of glob
             mkdir "$realimportdir" || \
             { echo "[\\e[1;31mFail\\e[0m] Could not create directory."; exit 1; }
-            cd "$export_dir" && find . -name "$glob" ! -name "$notglob" -print0 | xargs cp -t "$realimportdir" --null
+            cd "$export_dir" && find . -regex "$glob" -print0 | xargs cp -t "$realimportdir" --null
             echo -e "[\\e[1;32mSuccess\\e[0m] \\nPlease commit these files to your git repository and push to your remote. Then ssh to your remote and run:\\ndrush config-import --partial --source=\"$realimportdir\""            
         else exit 2
         fi
